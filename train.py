@@ -4,6 +4,7 @@ from collections import Counter
 import json
 from pathlib import Path
 import random
+import shutil
 from typing import Dict, List, Tuple
 
 from nltk.tokenize import WordPunctTokenizer
@@ -20,8 +21,8 @@ from utils import variable, cuda, write_event
 def main():
     parser = argparse.ArgumentParser()
     arg = parser.add_argument
-    arg('corpus')
     arg('root', help='checkpoint root')
+    arg('corpus')
     arg('--mode', choices=['train', 'validate'], default='train')
     arg('--model', default='CharGRU')
     arg('--batch-size', type=int, default=4)
@@ -34,9 +35,12 @@ def main():
         help='force epoch to have given number of batches')
     arg('--valid-corpus', help='path to validation corpus')
     arg('--valid-batches', type=int, help='validate on first N batches')
+    arg('--clear', action='store_true')
     args = parser.parse_args()
 
     root = Path(args.root)
+    if root.exists() and args.clear:
+        shutil.rmtree(str(root))
     root.mkdir(exist_ok=True)
     root.joinpath('params.json').write_text(
         json.dumps(vars(args), indent=True))
@@ -108,6 +112,7 @@ def train(args, model: CharRNN,
                 tr.set_postfix(loss=mean_loss)
                 if i and i % report_each == 0:
                     write_event(log, loss=mean_loss)
+            tr.close()
             save(ep=epoch + 1)
         except KeyboardInterrupt:
             print('\nGot Ctrl+C, saving checkpoint...')
