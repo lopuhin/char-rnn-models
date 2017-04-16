@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 from collections import Counter
+import json
 from pathlib import Path
 import random
 from typing import Dict, Tuple
@@ -18,19 +19,30 @@ def main():
     parser = argparse.ArgumentParser()
     arg = parser.add_argument
     arg('corpus', type=Path)
-    # arg('root', type=Path)
+    arg('root', type=Path)
     arg('--batch-size', type=int, default=4)
     arg('--window-size', type=int, default=256)
-    arg('--n-epochs', type=int, default=10)
     arg('--hidden-size', type=int, default=128)
     arg('--n-layers', type=int, default=1)
     arg('--lr', type=float, default=0.01)
+    arg('--n-epochs', type=int, default=10)
+    arg('--epoch-batches', type=int)
     args = parser.parse_args()
+
+    root = args.root  # type: Path
+    root.mkdir(exist_ok=True)
 
     with args.corpus.open(encoding='utf8') as f:
         corpus = f.read()
 
-    char_to_id = get_char_to_id(corpus)
+    vocab_file = root.joinpath('vocab.json')
+    if vocab_file.exists():
+        char_to_id = json.loads(vocab_file.read_text(encoding='utf8'))
+    else:
+        char_to_id = get_char_to_id(corpus)
+        with vocab_file.open('wt', encoding='utf8') as f:
+            json.dump(char_to_id, f, ensure_ascii=False, indent=True)
+
     n_characters = len(char_to_id)
     model = CharRNN(
         input_size=n_characters,
@@ -38,23 +50,30 @@ def main():
         output_size=n_characters,
         n_layers=args.n_layers,
     )
+    model_file = root.joinpath('model.pt')
+    if model_file.exists():
+        state = torch.load(str(model_file))
+        model.load_state_dict(state['state'])
+        epoch = state['epoch']
+    else:
+        epoch = 1
     model = cuda(model)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     criterion = torch.nn.CrossEntropyLoss()
 
     batch_chars = args.window_size * args.batch_size
-    for epoch in range(args.n_epochs):
+    for epoch in range(epoch, args.n_epochs + 1):
         losses = []
         tr = tqdm.tqdm(total=len(corpus))
-        tr.set_description('Epoch {}'.format(epoch + 1))
-        for _ in range(len(corpus) // batch_chars):
+        tr.set_description('Epoch {}'.format(epoch))
+        for _ in range(args.epoch_batches or (len(corpus) // batch_chars)):
             inputs, targets = random_batch(
                 corpus,
                 batch_size=args.batch_size,
                 window_size=args.window_size,
                 char_to_id=char_to_id,
             )
-            loss = update_model(
+            loss = train_model(
                 model=model,
                 criterion=criterion,
                 optimizer=optimizer,
@@ -64,11 +83,15 @@ def main():
             losses.append(loss)
             tr.update(batch_chars)
             tr.set_postfix(loss=np.mean(losses[-100:]))
+        torch.save({
+            'state': model.state_dict(),
+            'epoch': epoch + 1,
+        }, str(model_file))
 
 
-def update_model(*, model: CharRNN, criterion, optimizer,
-                 inputs: Variable, targets: Variable
-                 ) -> float:
+def train_model(*, model: CharRNN, criterion, optimizer,
+                inputs: Variable, targets: Variable
+                ) -> float:
     batch_size = inputs.size(0)
     window_size = inputs.size(1)
     hidden = cuda(model.init_hidden(batch_size))
