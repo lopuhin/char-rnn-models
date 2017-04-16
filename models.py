@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
-from torch.autograd import Variable
+
+from utils import variable
 
 
 class CharRNN(nn.Module):
@@ -24,13 +25,19 @@ class CharRNN(nn.Module):
         output = self.decoder(output.view(batch_size, -1))
         return output, hidden
 
-    def init_hidden(self, batch_size):
-        return Variable(torch.zeros(self.n_layers, batch_size, self.hidden_size))
-
 
 class CharGRU(CharRNN):
     cell_cls = nn.GRU
 
+    def init_hidden(self, batch_size):
+        return variable(
+            torch.zeros(self.n_layers, batch_size, self.hidden_size))
+
 
 class CharLSTM(CharRNN):
     cell_cls = nn.LSTM
+
+    def init_hidden(self, batch_size):
+        return (
+            variable(torch.zeros(self.n_layers, batch_size, self.hidden_size)),
+            variable(torch.zeros(self.n_layers, batch_size, self.hidden_size)))

@@ -130,7 +130,7 @@ def validate(args, model: CharRNN, criterion, char_to_id):
     valid_corpus = Path(args.valid_corpus).read_text(encoding='utf8')
     batch_size = 1
     window_size = args.window_size
-    hidden = cuda(model.init_hidden(batch_size))
+    hidden = model.init_hidden(batch_size)
     total_loss = n_chars = 0
     total_word_loss = n_words = 0
     n_iter = ((window_size * args.valid_batches) if args.valid_batches
