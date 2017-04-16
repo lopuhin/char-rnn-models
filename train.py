@@ -18,8 +18,8 @@ from utils import variable, cuda
 def main():
     parser = argparse.ArgumentParser()
     arg = parser.add_argument
-    arg('corpus', type=Path)
-    arg('root', type=Path)
+    arg('corpus')
+    arg('root')
     arg('--batch-size', type=int, default=4)
     arg('--window-size', type=int, default=256)
     arg('--hidden-size', type=int, default=128)
@@ -29,12 +29,12 @@ def main():
     arg('--epoch-batches', type=int)
     args = parser.parse_args()
 
-    root = args.root  # type: Path
+    root = Path(args.root)
     root.mkdir(exist_ok=True)
+    root.joinpath('params.json').write_text(
+        json.dumps(vars(args), indent=True))
 
-    with args.corpus.open(encoding='utf8') as f:
-        corpus = f.read()
-
+    corpus = Path(args.corpus).read_text(encoding='utf8')
     vocab_file = root.joinpath('vocab.json')
     if vocab_file.exists():
         char_to_id = json.loads(vocab_file.read_text(encoding='utf8'))
