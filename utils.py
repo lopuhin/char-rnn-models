@@ -19,7 +19,8 @@ def cuda(x):
     return x.cuda() if cuda_is_available else x
 
 
-def write_event(log, **data):
+def write_event(log, step: int, **data):
+    data['step'] = step
     data['dt'] = datetime.now().isoformat()
     log.write(json.dumps(data, sort_keys=True))
     log.write('\n')
@@ -46,9 +47,9 @@ def plot(*args, params=False):
             pprint(json.loads(path.joinpath('params.json').read_text()))
         for key in sorted(keys):
             xs, ys = [], []
-            for i, e in enumerate(events):
+            for e in events:
                 if key in e:
-                    xs.append(i)
+                    xs.append(e['step'])
                     ys.append(e[key])
             if xs:
                 plt.plot(xs, ys, label='{}: {}'.format(path, key))

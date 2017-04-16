@@ -66,13 +66,16 @@ def main():
         state = torch.load(str(model_file))
         model.load_state_dict(state['state'])
         epoch = state['epoch']
+        step = state['step']
     else:
         epoch = 1
+        step = 0
     model = cuda(model)
     criterion = torch.nn.CrossEntropyLoss()
 
     if args.mode == 'train':
-        train(args, model, epoch, corpus, char_to_id, criterion, model_file)
+        train(args, model, step, epoch, corpus, char_to_id, criterion,
+              model_file)
     elif args.mode == 'validate':
         if not args.valid_corpus:
             parser.error(
@@ -83,11 +86,14 @@ def main():
 
 
 def train(args, model: CharRNN,
-          epoch, corpus, char_to_id, criterion, model_file):
+          step, epoch, corpus, char_to_id, criterion, model_file):
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     batch_chars = args.window_size * args.batch_size
     save = lambda ep: torch.save({
-        'state': model.state_dict(), 'epoch': ep}, str(model_file))
+        'state': model.state_dict(),
+        'epoch': ep,
+        'step': step,
+    }, str(model_file))
     log = Path(args.root).joinpath('train.log').open('at', encoding='utf8')
     for epoch in range(epoch, args.n_epochs + 1):
         try:
@@ -106,12 +112,13 @@ def train(args, model: CharRNN,
                 )
                 loss = train_model(
                     model, criterion, optimizer, inputs, targets)
+                step += 1
                 losses.append(loss)
                 tr.update(batch_chars)
                 mean_loss = np.mean(losses[-report_each:])
                 tr.set_postfix(loss=mean_loss)
                 if i and i % report_each == 0:
-                    write_event(log, loss=mean_loss)
+                    write_event(log, step, loss=mean_loss)
             tr.close()
             save(ep=epoch + 1)
         except KeyboardInterrupt:
@@ -121,7 +128,7 @@ def train(args, model: CharRNN,
             return
         if args.valid_corpus:
             valid_result = validate(args, model, criterion, char_to_id)
-            write_event(log, **valid_result)
+            write_event(log, step, **valid_result)
     print('Done training for {} epochs'.format(args.n_epochs))
 
 
