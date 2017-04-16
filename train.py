@@ -11,6 +11,7 @@ import torch
 from torch.autograd import Variable
 import tqdm
 
+import models
 from models import CharRNN
 from utils import variable, cuda
 
@@ -21,6 +22,7 @@ def main():
     arg('corpus')
     arg('root', help='checkpoint root')
     arg('--mode', choices=['train', 'validate'], default='train')
+    arg('--model', default='CharGRU')
     arg('--batch-size', type=int, default=4)
     arg('--window-size', type=int, default=256)
     arg('--hidden-size', type=int, default=128)
@@ -48,12 +50,12 @@ def main():
             json.dump(char_to_id, f, ensure_ascii=False, indent=True)
 
     n_characters = len(char_to_id)
-    model = CharRNN(
+    model = getattr(models, args.model)(
         input_size=n_characters,
         hidden_size=args.hidden_size,
         output_size=n_characters,
         n_layers=args.n_layers,
-    )
+    )  # type: CharRNN
     model_file = root.joinpath('model.pt')
     if model_file.exists():
         state = torch.load(str(model_file))
@@ -79,12 +81,10 @@ def train(args, model: CharRNN,
           epoch, corpus, char_to_id, criterion, model_file):
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     batch_chars = args.window_size * args.batch_size
-    save = lambda: torch.save({
-        'state': model.state_dict(),
-        'epoch': epoch + 1,
-    }, str(model_file))
-    try:
-        for epoch in range(epoch, args.n_epochs + 1):
+    save = lambda ep: torch.save({
+        'state': model.state_dict(), 'epoch': ep}, str(model_file))
+    for epoch in range(epoch, args.n_epochs + 1):
+        try:
             losses = []
             n_iter = args.epoch_batches or (len(corpus) // batch_chars)
             tr = tqdm.tqdm(total=n_iter * batch_chars)
@@ -102,14 +102,15 @@ def train(args, model: CharRNN,
                 losses.append(loss)
                 tr.update(batch_chars)
                 tr.set_postfix(loss=np.mean(losses[-100:]))
-            save()
-            if args.valid_corpus:
-                validate(args, model, criterion, char_to_id)
-    except KeyboardInterrupt:
-        print('\nGot Ctrl+C, saving checkpoint...')
-        save()
-        print('done.')
-        return
+            save(ep=epoch + 1)
+        except KeyboardInterrupt:
+            print('\nGot Ctrl+C, saving checkpoint...')
+            save(ep=epoch)
+            print('done.')
+            return
+        if args.valid_corpus:
+            validate(args, model, criterion, char_to_id)
+    print('Done training for {} epochs'.format(args.n_epochs))
 
 
 def validate(args, model: CharRNN, criterion, char_to_id):

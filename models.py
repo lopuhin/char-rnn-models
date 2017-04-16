@@ -4,6 +4,8 @@ from torch.autograd import Variable
 
 
 class CharRNN(nn.Module):
+    cell_cls = None
+
     def __init__(self, input_size, hidden_size, output_size, n_layers=1):
         super(CharRNN, self).__init__()
         self.input_size = input_size
@@ -12,15 +14,23 @@ class CharRNN(nn.Module):
         self.n_layers = n_layers
 
         self.encoder = nn.Embedding(input_size, hidden_size)
-        self.gru = nn.GRU(hidden_size, hidden_size, n_layers)
+        self.cell = self.cell_cls(hidden_size, hidden_size, n_layers)
         self.decoder = nn.Linear(hidden_size, output_size)
 
     def forward(self, inputs, hidden):
         batch_size = inputs.size(0)
         encoded = self.encoder(inputs)
-        output, hidden = self.gru(encoded.view(1, batch_size, -1), hidden)
+        output, hidden = self.cell(encoded.view(1, batch_size, -1), hidden)
         output = self.decoder(output.view(batch_size, -1))
         return output, hidden
 
     def init_hidden(self, batch_size):
         return Variable(torch.zeros(self.n_layers, batch_size, self.hidden_size))
+
+
+class CharGRU(CharRNN):
+    cell_cls = nn.GRU
+
+
+class CharLSTM(CharRNN):
+    cell_cls = nn.LSTM
