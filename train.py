@@ -4,8 +4,9 @@ from collections import Counter
 import json
 from pathlib import Path
 import random
-from typing import Dict, Tuple
+from typing import Dict, List, Tuple
 
+from nltk.tokenize import WordPunctTokenizer
 import numpy as np
 import torch
 from torch.autograd import Variable
@@ -114,8 +115,8 @@ def train(args, model: CharRNN,
             print('done.')
             return
         if args.valid_corpus:
-            valid_loss = validate(args, model, criterion, char_to_id)
-            write_event(log, valid_loss=valid_loss)
+            valid_result = validate(args, model, criterion, char_to_id)
+            write_event(log, **valid_result)
     print('Done training for {} epochs'.format(args.n_epochs))
 
 
@@ -125,20 +126,38 @@ def validate(args, model: CharRNN, criterion, char_to_id):
     batch_size = 1
     window_size = args.window_size
     hidden = cuda(model.init_hidden(batch_size))
-    loss = n = 0
+    total_loss = n_chars = 0
+    total_word_loss = n_words = 0
     n_iter = ((window_size * args.valid_batches) if args.valid_batches
               else len(valid_corpus))
     for idx in range(0, min(n_iter, len(valid_corpus) - 1), window_size):
         chunk = valid_corpus[idx: idx + window_size + 1]
         inputs = variable(char_tensor(chunk[:-1], char_to_id).unsqueeze(0))
         targets = variable(char_tensor(chunk[1:], char_to_id).unsqueeze(0))
+        losses = []
         for c in range(inputs.size(1)):
             output, hidden = model(inputs[:, c], hidden)
-            loss += criterion(output.view(batch_size, -1), targets[:, c])
-            n += 1
-    mean_loss = loss.data[0] / n
-    print('Validation loss: {:.3}'.format(mean_loss))
-    return mean_loss
+            loss = criterion(output.view(batch_size, -1), targets[:, c])
+            losses.append(loss.data[0])
+            n_chars += 1
+        total_loss += np.sum(losses)
+        word_losses = word_loss(chunk, losses)
+        total_word_loss += np.sum(word_losses)
+        n_words += len(word_losses)
+    mean_loss = total_loss / n_chars
+    mean_word_perplexity = np.exp(total_word_loss / n_words)
+    print('Validation loss: {:.3}, word perplexity: {:.1f}'.format(
+        mean_loss, mean_word_perplexity))
+    return {'valid_loss': mean_loss,
+            'valid_word_perplexity': mean_word_perplexity}
+
+
+def word_loss(chunk: str, losses: List[float]) -> List[float]:
+    tokenizer = WordPunctTokenizer()
+    spans = list(tokenizer.span_tokenize(chunk))
+    return [sum(losses[start:end])
+            # first and last might be incomplete
+            for start, end in spans[1: -1]]
 
 
 def train_model(model: CharRNN, criterion, optimizer,
