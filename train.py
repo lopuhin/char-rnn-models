@@ -144,7 +144,9 @@ def validate(args, model: CharRNN, criterion, char_to_id):
               else len(valid_corpus))
     for idx in range(0, min(n_iter, len(valid_corpus) - 1), window_size):
         chunk = valid_corpus[idx: idx + window_size + 1]
-        inputs = variable(char_tensor(chunk[:-1], char_to_id).unsqueeze(0))
+        inputs = variable(
+            char_tensor(chunk[:-1], char_to_id).unsqueeze(0),
+            volatile=True)
         targets = variable(char_tensor(chunk[1:], char_to_id).unsqueeze(0))
         losses = []
         for c in range(inputs.size(1)):
