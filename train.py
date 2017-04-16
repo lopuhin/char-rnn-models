@@ -13,7 +13,7 @@ import tqdm
 
 import models
 from models import CharRNN
-from utils import variable, cuda
+from utils import variable, cuda, write_event
 
 
 def main():
@@ -83,14 +83,16 @@ def train(args, model: CharRNN,
     batch_chars = args.window_size * args.batch_size
     save = lambda ep: torch.save({
         'state': model.state_dict(), 'epoch': ep}, str(model_file))
+    log = Path(args.root).joinpath('train.log').open('at', encoding='utf8')
     for epoch in range(epoch, args.n_epochs + 1):
         try:
             losses = []
             n_iter = args.epoch_batches or (len(corpus) // batch_chars)
+            report_each = min(10, n_iter - 1)
             tr = tqdm.tqdm(total=n_iter * batch_chars)
             tr.set_description('Epoch {}'.format(epoch))
             model.train()
-            for _ in range(n_iter):
+            for i in range(n_iter):
                 inputs, targets = random_batch(
                     corpus,
                     batch_size=args.batch_size,
@@ -101,7 +103,10 @@ def train(args, model: CharRNN,
                     model, criterion, optimizer, inputs, targets)
                 losses.append(loss)
                 tr.update(batch_chars)
-                tr.set_postfix(loss=np.mean(losses[-100:]))
+                mean_loss = np.mean(losses[-report_each:])
+                tr.set_postfix(loss=mean_loss)
+                if i and i % report_each == 0:
+                    write_event(log, loss=mean_loss)
             save(ep=epoch + 1)
         except KeyboardInterrupt:
             print('\nGot Ctrl+C, saving checkpoint...')
@@ -109,7 +114,8 @@ def train(args, model: CharRNN,
             print('done.')
             return
         if args.valid_corpus:
-            validate(args, model, criterion, char_to_id)
+            valid_loss = validate(args, model, criterion, char_to_id)
+            write_event(log, valid_loss=valid_loss)
     print('Done training for {} epochs'.format(args.n_epochs))
 
 
@@ -132,6 +138,7 @@ def validate(args, model: CharRNN, criterion, char_to_id):
             n += 1
     mean_loss = loss.data[0] / n
     print('Validation loss: {:.3}'.format(mean_loss))
+    return mean_loss
 
 
 def train_model(model: CharRNN, criterion, optimizer,
