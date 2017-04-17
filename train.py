@@ -32,6 +32,7 @@ def main():
     arg('--batch-size', type=int, default=4)
     arg('--window-size', type=int, default=256)
     arg('--hidden-size', type=int, default=128)
+    arg('--emb-size', type=int)
     arg('--n-layers', type=int, default=1)
     arg('--lr', type=float, default=0.01)
     arg('--n-epochs', type=int, default=10)
@@ -58,11 +59,10 @@ def main():
         with vocab_file.open('wt', encoding='utf8') as f:
             json.dump(char_to_id, f, ensure_ascii=False, indent=True)
 
-    n_characters = len(char_to_id)
     model = getattr(models, args.model)(
-        input_size=n_characters,
+        n_chars=len(char_to_id),
+        emb_size=args.emb_size or args.hidden_size,
         hidden_size=args.hidden_size,
-        output_size=n_characters,
         n_layers=args.n_layers,
     )  # type: CharRNN
     model_file = root.joinpath('model.pt')

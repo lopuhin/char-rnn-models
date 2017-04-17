@@ -7,16 +7,13 @@ from utils import variable
 class CharRNN(nn.Module):
     cell_cls = None
 
-    def __init__(self, input_size, hidden_size, output_size, n_layers=1):
+    def __init__(self, n_chars, emb_size, hidden_size, n_layers=1):
         super(CharRNN, self).__init__()
-        self.input_size = input_size
         self.hidden_size = hidden_size
-        self.output_size = output_size
         self.n_layers = n_layers
-
-        self.encoder = nn.Embedding(input_size, hidden_size)
-        self.cell = self.cell_cls(hidden_size, hidden_size, n_layers)
-        self.decoder = nn.Linear(hidden_size, output_size)
+        self.encoder = nn.Embedding(n_chars, emb_size)
+        self.cell = self.cell_cls(emb_size, hidden_size, n_layers)
+        self.decoder = nn.Linear(hidden_size, n_chars)
 
     def forward(self, inputs, hidden):
         batch_size = inputs.size(0)
