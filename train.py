@@ -34,7 +34,7 @@ def main():
     arg('--epoch-batches', type=int,
         help='force epoch to have given number of batches')
     arg('--valid-corpus', help='path to validation corpus')
-    arg('--valid-batches', type=int, help='validate on first N batches')
+    arg('--valid-chars', type=int, help='validate on first N chars')
     arg('--clear', action='store_true')
     args = parser.parse_args()
 
@@ -80,7 +80,7 @@ def main():
         if not args.valid_corpus:
             parser.error(
                 'Pass path to validation corpus via --valid-corpus')
-        validate(args, model, criterion, char_to_id)
+        validate(args, model, criterion, char_to_id, pbar=True)
     else:
         parser.error('Unexpected mode {}'.format(args.mode))
 
@@ -132,17 +132,19 @@ def train(args, model: CharRNN,
     print('Done training for {} epochs'.format(args.n_epochs))
 
 
-def validate(args, model: CharRNN, criterion, char_to_id):
+def validate(args, model: CharRNN, criterion, char_to_id, pbar=False):
     model.eval()
     valid_corpus = Path(args.valid_corpus).read_text(encoding='utf8')
     batch_size = 1
-    window_size = args.window_size
+    window_size = 4096
     hidden = model.init_hidden(batch_size)
     total_loss = n_chars = 0
     total_word_loss = n_words = 0
-    n_iter = ((window_size * args.valid_batches) if args.valid_batches
-              else len(valid_corpus))
-    for idx in range(0, min(n_iter, len(valid_corpus) - 1), window_size):
+    r = tqdm.trange if pbar else range
+    for idx in r(0,
+                 min(args.valid_chars or len(valid_corpus),
+                     len(valid_corpus) - 1),
+                 window_size):
         chunk = valid_corpus[idx: idx + window_size + 1]
         inputs = variable(
             char_tensor(chunk[:-1], char_to_id).unsqueeze(0),
