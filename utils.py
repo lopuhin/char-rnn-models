@@ -27,7 +27,7 @@ def write_event(log, step: int, **data):
     log.flush()
 
 
-def plot(*args, params=False):
+def plot(*args, ymin=None, ymax=None, xmin=None, xmax=None, params=False):
     """ Use in the notebook like this:
     plot('./runs/oc2', './runs/oc1', 'loss', 'valid_loss')
     """
@@ -38,6 +38,23 @@ def plot(*args, params=False):
         else:
             keys.append(x)
     plt.figure(figsize=(12, 8))
+
+    ylim_kw = {}
+    if ymin is not None:
+        ylim_kw['ymin'] = ymin
+    if ymax is not None:
+        ylim_kw['ymax'] = ymax
+    if ylim_kw:
+        plt.ylim(**ylim_kw)
+
+    xlim_kw = {}
+    if xmin is not None:
+        xlim_kw['xmin'] = xmin
+    if xmax is not None:
+        xlim_kw['xmax'] = xmax
+    if xlim_kw:
+        plt.xlim(**xlim_kw)
+
     for path in sorted(paths):
         path = Path(path)
         with path.joinpath('train.log').open() as f:
