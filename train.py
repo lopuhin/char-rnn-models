@@ -11,11 +11,15 @@ from nltk.tokenize import WordPunctTokenizer
 import numpy as np
 import torch
 from torch.autograd import Variable
+import torch.backends.cudnn
 import tqdm
 
 import models
 from models import CharRNN
 from utils import variable, cuda, write_event
+
+
+torch.backends.cudnn.enabled = False
 
 
 def main():
