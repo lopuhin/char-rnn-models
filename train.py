@@ -50,11 +50,12 @@ def main():
     root.joinpath('params.json').write_text(
         json.dumps(vars(args), indent=True))
 
-    corpus = Path(args.corpus).read_text(encoding='utf8')
+    corpus = None
     vocab_file = root.joinpath('vocab.json')
     if vocab_file.exists():
         char_to_id = json.loads(vocab_file.read_text(encoding='utf8'))
     else:
+        corpus = Path(args.corpus).read_text(encoding='utf8')
         char_to_id = get_char_to_id(corpus)
         with vocab_file.open('wt', encoding='utf8') as f:
             json.dump(char_to_id, f, ensure_ascii=False, indent=True)
@@ -78,6 +79,7 @@ def main():
     criterion = torch.nn.CrossEntropyLoss()
 
     if args.mode == 'train':
+        corpus = corpus or Path(args.corpus).read_text(encoding='utf8')
         train(args, model, step, epoch, corpus, char_to_id, criterion,
               model_file)
     elif args.mode == 'validate':
@@ -175,6 +177,8 @@ def validate(args, model: CharRNN, criterion, char_to_id, pbar=False):
 def word_loss(chunk: str, losses: List[float]) -> List[float]:
     tokenizer = WordPunctTokenizer()
     spans = list(tokenizer.span_tokenize(chunk))
+    # FIXME - this is a bit optimistic, do it properly:
+    # gather outputs, check wordpunkt tokenizer regexp against characters
     return [sum(losses[start:end])
             # first and last might be incomplete
             for start, end in spans[1: -1]]
